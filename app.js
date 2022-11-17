@@ -73,6 +73,53 @@ async function reboot(ip, password) {
   browser.close();
 }
 
+async function provisionZoom(ip, password) {
+  const browser = await puppeteer.launch({ headless: true, ignoreHTTPSErrors: true });
+  const page = await browser.newPage();
+
+
+  await page.goto("https://" + ip);
+
+  await page.setViewport({
+    width: 1200,
+    height: 800
+  });
+
+  await page.waitForSelector('input');
+  await page.type('input[type="password"]', password);
+  await page.click('input[class="button gray medium"]', 'MouseButton')
+
+  await page.waitForSelector('li.menu-item');
+  await timeout(2500);
+  await page.click('li#topMenuItem4', 'MouseButton');
+  await page.click('li[src="provConf.htm"]', 'MouseButton');
+
+  await timeout(500);
+  await page.select('select[name="445"]', '3')
+  await page.type('input[paramname="device.prov.serverName"]','https://provpp.zoom.us/api/v2/pbx/provisioning/Polycom/vvx500')
+
+  await page.click('input[name="451"]', 'MouseButton');
+  for(let i = 0; i<8; i++){
+    await page.keyboard.press('Backspace');
+  }
+
+  await page.click('input[name="437"]', 'MouseButton');
+  for(let i = 0; i<4; i++){
+    await page.keyboard.press('Backspace');
+  }
+
+  await page.click('div#section > p.section > strong > span[textid="361"]', 'MouseButton');
+  await timeout(500);
+  await page.select('select[name="168"]', '2')
+
+  await page.click('div#buttonContent > button > span[textid="574"]', 'MouseButton');
+  await page.click('div.btn-popup-actions > button#popupbtn0', 'MouseButton');
+
+  console.log(`Success! ${ip} is provisioned for Zoom.`);
+  await timeout(1500);
+  browser.close(); 
+}
+
 async function rebootAll() {
 
   let devices = [];
@@ -127,6 +174,33 @@ async function factoryResetAll() {
 
 }
 
+async function provisionZoomAll() {
+
+  let devices = [];
+
+  console.log('Initiating Zoom Manual Provisioning...');
+
+  fs.createReadStream('devices.csv')
+    .pipe(csv())
+    .on('data', (row) => {
+      devices.push(row);
+    })
+    .on('end', async () => {
+      console.log("CSV was read for ProvisionZoomAll");
+      for (let device of devices) {
+        try {
+          console.log(`Zoom provisioning ${device.ipAddress}`);
+          await provisionZoom(device.ipAddress, device.password)
+        }
+        catch (err) {
+          console.log(`ERROR: Could not Zoom provision ${device.ipAddress}`);
+        }
+      }
+    });
+
+
+}
+
 async function main() {
   console.log('Polycom VVX 500');
 
@@ -135,6 +209,7 @@ async function main() {
   const choices = [
     'Factory Reset All',
     'Reboot All',
+    'Manual Zoom Provision All'
   ];
 
   while (choice != -1) {
@@ -146,13 +221,18 @@ async function main() {
         console.log('Goodbye...');
         break;
       case 0:
-        // Display access token
+
         await factoryResetAll();
         choice = -1
         break;
       case 1:
-        // List emails from user's inbox
+
         await rebootAll();
+        choice = -1
+        break;
+      case 2:
+
+        await provisionZoomAll();
         choice = -1
         break;
       default:
